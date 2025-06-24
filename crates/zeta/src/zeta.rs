@@ -696,7 +696,7 @@ and then another
         &mut self,
         project: Option<&Entity<Project>>,
         buffer: &Entity<Buffer>,
-        position: language::Anchor,
+        position: Anchor,
         response: PredictEditsResponse,
         cx: &mut Context<Self>,
     ) -> Task<Result<Option<InlineCompletion>>> {
@@ -811,68 +811,70 @@ and then another
         request_id: InlineCompletionId,
         cx: &mut Context<Self>,
     ) -> Task<Result<()>> {
-        let client = self.client.clone();
-        let llm_token = self.llm_token.clone();
-        let app_version = AppVersion::global(cx);
-        cx.spawn(async move |this, cx| {
-            let http_client = client.http_client();
-            let mut response = llm_token_retry(&llm_token, &client, |token| {
-                let request_builder = http_client::Request::builder().method(Method::POST);
-                let request_builder =
-                    if let Ok(accept_prediction_url) = std::env::var("ZED_ACCEPT_PREDICTION_URL") {
-                        request_builder.uri(accept_prediction_url)
-                    } else {
-                        request_builder.uri(
-                            http_client
-                                .build_zed_llm_url("/predict_edits/accept", &[])?
-                                .as_ref(),
-                        )
-                    };
-                Ok(request_builder
-                    .header("Content-Type", "application/json")
-                    .header("Authorization", format!("Bearer {}", token))
-                    .header(ZED_VERSION_HEADER_NAME, app_version.to_string())
-                    .body(
-                        serde_json::to_string(&AcceptEditPredictionBody {
-                            request_id: request_id.0,
-                        })?
-                        .into(),
-                    )?)
-            })
-            .await?;
+        // let client = self.client.clone();
+        // let llm_token = self.llm_token.clone();
+        // let app_version = AppVersion::global(cx);
+        // cx.spawn(async move |this, cx| {
+        //     let http_client = client.http_client();
+        //     let mut response = llm_token_retry(&llm_token, &client, |token| {
+        //         let request_builder = http_client::Request::builder().method(Method::POST);
+        //         let request_builder =
+        //             if let Ok(accept_prediction_url) = std::env::var("ZED_ACCEPT_PREDICTION_URL") {
+        //                 request_builder.uri(accept_prediction_url)
+        //             } else {
+        //                 request_builder.uri(
+        //                     http_client
+        //                         .build_zed_llm_url("/predict_edits/accept", &[])?
+        //                         .as_ref(),
+        //                 )
+        //             };
+        //         Ok(request_builder
+        //             .header("Content-Type", "application/json")
+        //             .header("Authorization", format!("Bearer {}", token))
+        //             .header(ZED_VERSION_HEADER_NAME, app_version.to_string())
+        //             .body(
+        //                 serde_json::to_string(&AcceptEditPredictionBody {
+        //                     request_id: request_id.0,
+        //                 })?
+        //                 .into(),
+        //             )?)
+        //     })
+        //     .await?;
 
-            if let Some(minimum_required_version) = response
-                .headers()
-                .get(MINIMUM_REQUIRED_VERSION_HEADER_NAME)
-                .and_then(|version| SemanticVersion::from_str(version.to_str().ok()?).ok())
-            {
-                if app_version < minimum_required_version {
-                    return Err(anyhow!(ZedUpdateRequiredError {
-                        minimum_version: minimum_required_version
-                    }));
-                }
-            }
+        //     if let Some(minimum_required_version) = response
+        //         .headers()
+        //         .get(MINIMUM_REQUIRED_VERSION_HEADER_NAME)
+        //         .and_then(|version| SemanticVersion::from_str(version.to_str().ok()?).ok())
+        //     {
+        //         if app_version < minimum_required_version {
+        //             return Err(anyhow!(ZedUpdateRequiredError {
+        //                 minimum_version: minimum_required_version
+        //             }));
+        //         }
+        //     }
 
-            if response.status().is_success() {
-                if let Some(usage) = EditPredictionUsage::from_headers(response.headers()).ok() {
-                    this.update(cx, |this, cx| {
-                        this.user_store.update(cx, |user_store, cx| {
-                            user_store.update_edit_prediction_usage(usage, cx);
-                        });
-                    })?;
-                }
+        //     if response.status().is_success() {
+        //         if let Some(usage) = EditPredictionUsage::from_headers(response.headers()).ok() {
+        //             this.update(cx, |this, cx| {
+        //                 this.user_store.update(cx, |user_store, cx| {
+        //                     user_store.update_edit_prediction_usage(usage, cx);
+        //                 });
+        //             })?;
+        //         }
 
-                Ok(())
-            } else {
-                let mut body = String::new();
-                response.body_mut().read_to_string(&mut body).await?;
-                Err(anyhow!(
-                    "error accepting edit prediction.\nStatus: {:?}\nBody: {}",
-                    response.status(),
-                    body
-                ))
-            }
-        })
+        //         Ok(())
+        //     } else {
+        //         let mut body = String::new();
+        //         response.body_mut().read_to_string(&mut body).await?;
+        //         Err(anyhow!(
+        //             "error accepting edit prediction.\nStatus: {:?}\nBody: {}",
+        //             response.status(),
+        //             body
+        //         ))
+        //     }
+        // })
+
+        cx.spawn(async move |this, cx| Ok(()))
     }
 
     fn process_completion_response(
